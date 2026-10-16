@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pulso del Vínculo — 3C | El Patrón Oculto</title>
+  <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/recharts@2.5.0/umd/Recharts.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0f0f0f; min-height: 100%; }
+    body { font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    @keyframes ctaLift {
+      0%   { transform: translateY(0px);  box-shadow: 0 0px 0px rgba(201,169,110,0); }
+      50%  { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(201,169,110,0.5); }
+      100% { transform: translateY(0px);  box-shadow: 0 0px 0px rgba(201,169,110,0); }
+    }
+    .cta-pulse { animation: ctaLift 2.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .cta-pulse { animation: none; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useCallback, useEffect } = React;
+    const { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer } = Recharts;
+
+    const VINCULOS = [
+      { id: 'Pareja', label: 'Pareja', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#c9a96e" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      )},
+      { id: 'Hijo', label: 'Hijo / Hija', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#c9a96e" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="5" r="3"/>
+          <path d="M12 10c-3.31 0-6 2.69-6 6v2h4v4h4v-4h4v-2c0-3.31-2.69-6-6-6z"/>
+        </svg>
+      )},
+      { id: 'Amigo', label: 'Amigo / Amiga', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#c9a96e" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+        </svg>
+      )},
+      { id: 'Colega', label: 'Colega', icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#c9a96e" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6h-2.18c.07-.44.18-.86.18-1.3C18 2.57 15.43 1 13 1c-1.3 0-2.48.52-3.36 1.36L8 4H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-7-3c1.1 0 2 .9 2 2H11l1.5-1.5C12.84 3.19 13.4 3 14 3zm6 14H4V6h5.44l-2.19 2.19C6.49 8.78 6 9.61 6 10.5 6 12.43 7.57 14 9.5 14c.96 0 1.82-.38 2.45-1H13c.63.62 1.49 1 2.45 1C17.43 14 19 12.43 19 10.5c0-.89-.49-1.72-1.25-2.31L17 7.9V6h3v11z"/>
+        </svg>
+      )},
+    ];
+
+    const OPTIONS = [
+      { value: 1, label: 'Casi nunca' },
+      { value: 2, label: 'A veces' },
+      { value: 3, label: 'Frecuentemente' },
+      { value: 4, label: 'Siempre' },
+    ];
+
+    const QUESTIONS = {
+      Pareja: [
+        { c: 'C1', text: '¿Puedes decirle lo que realmente piensas y sientes sin editarte?' },
+        { c: 'C1', text: '¿Las conversaciones difíciles entre ustedes llegan a su punto real o se quedan en la superficie?' },
+        { c: 'C1', text: '¿Sientes que tu pareja te escucha de verdad, no solo que espera su turno para hablar?' },
+        { c: 'C1', text: '¿Hay temas importantes que necesitarían hablar y que llevan tiempo postergando?' },
+        { c: 'C2', text: '¿El ritmo de la relación lo definen los dos o tiende a imponerlo uno de ustedes?' },
+        { c: 'C2', text: '¿Cuando uno toma una decisión importante, el otro lo sabe de antemano y participa en ella?' },
+        { c: 'C2', text: '¿Se mueven juntos en los momentos que importan o cada uno va resolviendo por separado?' },
+        { c: 'C2', text: '¿Hay acuerdos claros y respetados sobre cómo funciona la relación?' },
+        { c: 'C3', text: '¿Tienen algo que estén construyendo juntos más allá de la rutina?' },
+        { c: 'C3', text: '¿Sienten que van hacia el mismo lugar o cada uno tiene su propio destino?' },
+        { c: 'C3', text: '¿Cuando uno tiene un sueño o proyecto, el otro lo hace suyo también de alguna manera?' },
+        { c: 'C3', text: '¿Hay un propósito compartido que le dé sentido a seguir juntos más allá del amor o la costumbre?' },
+      ],
+      Hijo: [
+        { c: 'C1', text: '¿Puedes decirle lo que realmente piensas y sientes sin editarte?' },
+        { c: 'C1', text: '¿Las conversaciones difíciles entre ustedes llegan a su punto real o se quedan en la superficie?' },
+        { c: 'C1', text: '¿Sientes que tu hijo/hija te escucha de verdad, no solo que espera su turno para hablar?' },
+        { c: 'C1', text: '¿Hay temas importantes que necesitarían hablar y que llevan tiempo postergando?' },
+        { c: 'C2', text: '¿El ritmo de la relación lo definen los dos o tiende a imponerlo uno de ustedes?' },
+        { c: 'C2', text: '¿Cuando uno toma una decisión importante que afecta al otro, lo sabe de antemano?' },
+        { c: 'C2', text: '¿Se mueven juntos en los momentos que importan o cada uno va resolviendo por separado?' },
+        { c: 'C2', text: '¿Hay acuerdos claros y respetados sobre cómo funciona la relación?' },
+        { c: 'C3', text: '¿Tienen algo que estén construyendo juntos más allá de la rutina?' },
+        { c: 'C3', text: '¿Sienten que van hacia el mismo lugar o cada uno tiene su propio destino sin puntos de encuentro?' },
+        { c: 'C3', text: '¿Cuando uno tiene un sueño o proyecto, el otro lo hace suyo también de alguna manera?' },
+        { c: 'C3', text: '¿Hay un propósito compartido que le dé sentido a seguir construyendo este vínculo?' },
+      ],
+      Amigo: [
+        { c: 'C1', text: '¿Puedes decirle lo que realmente piensas y sientes sin editarte?' },
+        { c: 'C1', text: '¿Las conversaciones difíciles entre ustedes llegan a su punto real o se quedan en lo seguro?' },
+        { c: 'C1', text: '¿Sientes que tu amigo/amiga te escucha de verdad, o solo espera su turno para hablar?' },
+        { c: 'C1', text: '¿Hay cosas importantes que necesitarían hablar y que llevan tiempo evitando?' },
+        { c: 'C2', text: '¿El ritmo de la amistad lo sostienen los dos o tiende a cargarlo uno de ustedes?' },
+        { c: 'C2', text: '¿Cuando uno pasa por algo importante, el otro está disponible de verdad?' },
+        { c: 'C2', text: '¿Se mueven juntos en los momentos que importan o cada uno va resolviendo por su lado?' },
+        { c: 'C2', text: '¿Hay un ritmo de encuentro que los dos sostengan o depende de quien tome la iniciativa?' },
+        { c: 'C3', text: '¿Tienen algo que estén haciendo juntos más allá de verse de vez en cuando?' },
+        { c: 'C3', text: '¿Sienten que esta amistad va hacia algún lugar o simplemente existe?' },
+        { c: 'C3', text: '¿Cuando uno tiene un proyecto o sueño, el otro se involucra de alguna manera?' },
+        { c: 'C3', text: '¿Hay algo que esta amistad esté construyendo que ninguno podría construir solo?' },
+      ],
+      Colega: [
+        { c: 'C1', text: '¿Puedes decirle lo que realmente piensas sobre el trabajo sin editarte?' },
+        { c: 'C1', text: '¿Las conversaciones difíciles entre ustedes llegan a su punto real o se quedan en lo diplomático?' },
+        { c: 'C1', text: '¿Sientes que tu colega te escucha de verdad, o solo espera su turno para responder?' },
+        { c: 'C1', text: '¿Hay temas de trabajo que necesitarían hablar y que llevan tiempo postergando?' },
+        { c: 'C2', text: '¿El ritmo del trabajo lo definen los dos o tiende a imponerlo uno de ustedes?' },
+        { c: 'C2', text: '¿Cuando uno toma una decisión que afecta al otro, hay comunicación previa y participación?' },
+        { c: 'C2', text: '¿Se coordinan con fluidez o cada uno va resolviendo por su cuenta?' },
+        { c: 'C2', text: '¿Hay acuerdos claros sobre cómo trabajan juntos y cómo toman decisiones?' },
+        { c: 'C3', text: '¿Tienen algo que estén construyendo juntos más allá de las tareas del día a día?' },
+        { c: 'C3', text: '¿Sienten que trabajan hacia el mismo objetivo o cada uno tiene su propia agenda?' },
+        { c: 'C3', text: '¿Cuando uno tiene una idea importante, el otro la hace suya también?' },
+        { c: 'C3', text: '¿Hay un propósito compartido que le dé energía a trabajar juntos más allá de lo que toca?' },
+      ],
+    };
+
+    const COMBO_TEXTS = {
+      Pareja: {
+        'C1+C2': {
+          titulo: 'No se están viendo y no se están moviendo juntos.',
+          p1: 'Este vínculo tiene historia y afecto, pero dos de sus tres nodos están bajo presión simultánea. La comunicación no está llegando a donde necesita llegar: hay cosas que no se dicen, conversaciones que no alcanzan su punto real, una distancia que se administra pero no se resuelve. Y al mismo tiempo, el ritmo entre los dos está desajustado: uno avanza mientras el otro espera, o cada uno resuelve su parte sin que haya una cadencia compartida. Cuando estas dos cosas coinciden, la relación puede funcionar en apariencia pero los dos se sienten solos dentro de ella, cada uno de una forma distinta.',
+          p2: 'Con el tiempo, esa distancia que se administra pero no se resuelve se convierte en algo más difícil de revertir. Cada uno construye su propio mundo paralelo, con sus propias rutinas, sus propias interpretaciones, sus propias formas de procesar lo que pasa entre ellos. Las conversaciones pendientes se acumulan no porque no haya amor, sino porque el umbral para iniciarlas sube con cada semana que pasa. Lo que antes era un tema difícil termina siendo un tema imposible.',
+          p3: 'Lo que está en juego es la diferencia entre compartir un espacio y compartir una vida. Si el patrón continúa, la relación puede mantenerse en pie durante años y los dos sentirse profundamente solos dentro de ella. Si se trabaja, lo que se abre es la posibilidad de una comunicación que llegue a su punto real y un ritmo que los dos sientan como propio.',
+          pregunta: '¿Hay algo que necesitan acordar y una conversación que necesitan tener, y que llevan tiempo postergando?',
+        },
+        'C1+C3': {
+          titulo: 'Están coordinados, pero no conectados ni construyendo.',
+          p1: 'Este vínculo tiene un ritmo funcional. Hay acuerdos, hay organización, hay cosas que fluyen. Pero debajo de esa superficie hay dos ausencias que pesan: no se están viendo de verdad en la comunicación, y no hay un propósito claro que los una más allá de lo cotidiano. Eso puede pasar desapercibido durante mucho tiempo, porque la coordinación da una ilusión de estabilidad. Pero la estabilidad sin conexión real y sin destino compartido termina sintiéndose vacía.',
+          p2: 'Con el tiempo, la estabilidad funcional empieza a sentirse como un techo, no como un suelo. La ausencia de conexión real y de destino compartido no produce crisis visibles; produce distancia lenta. Cada uno sigue sumando cosas a su propia vida sin que haya un "nosotros" que crezca con ellas. Cuando eso ocurre durante mucho tiempo, la relación se convierte en una forma de convivencia organizada, no en un vínculo vivo.',
+          p3: 'Lo que está en juego es la diferencia entre una relación estable y una relación con sentido. Si el patrón continúa, la coordinación puede mantenerse, pero el vínculo emocional seguirá erosionándose en silencio. Si se trabaja, lo que se abre es la posibilidad de una conversación honesta sobre qué está sosteniendo esta relación y hacia dónde quieren ir juntos.',
+          pregunta: '¿Saben los dos qué está sosteniendo esta relación y hacia dónde va?',
+        },
+        'C2+C3': {
+          titulo: 'Se comunican, pero no se mueven ni construyen juntos.',
+          p1: 'Hay algo valioso en este vínculo: la comunicación existe. Pueden hablarse, pueden decirse cosas reales. Pero esa capacidad de comunicarse no está siendo suficiente para generar movimiento compartido ni propósito. Cada uno sigue su propio ritmo y sus propios proyectos. Están juntos, pero en paralelo. La conversación existe; lo que falta es que esa conversación mueva algo, que lleve a decisiones, a acuerdos, a algo que estén construyendo los dos.',
+          p2: 'Con el tiempo, la brecha entre lo que se dice y lo que pasa empieza a generar frustración. Las conversaciones existen, pero si no llevan a decisiones ni a movimiento, terminan sintiéndose como un esfuerzo que no rinde. Uno de los dos empieza a preguntarse para qué sirve hablar si nada cambia. Y esa pregunta, si no encuentra respuesta, silencia poco a poco la comunicación que era el activo más valioso del vínculo.',
+          p3: 'Lo que está en juego es que la comunicación que hoy existe deje de parecer suficiente y se convierta en fuente de desgaste. Si el patrón continúa, la relación puede perder incluso lo que tiene. Si se trabaja, lo que se abre es convertir esa capacidad de hablarse en algo que genere movimiento, acuerdos y una dirección que los dos sientan como compartida.',
+          pregunta: '¿La comunicación que tienen está llevando a decisiones concretas o se queda en conversaciones que no mueven nada?',
+        },
+        'C1+C2+C3': {
+          titulo: 'Los tres nodos están bajo presión.',
+          p1: 'Este vínculo existe, pero está operando casi exclusivamente desde la inercia. No se están viendo de verdad, el ritmo no es compartido, y no hay algo que los dos estén construyendo juntos. Eso no significa que la relación esté rota. Significa que está en piloto automático: sobrevive por la historia común, por la costumbre de estar, por el afecto de fondo. Reconocer eso no es un diagnóstico negativo. Es una pregunta: ¿qué quieren hacer con esta relación?',
+          p2: 'Cuando los tres nodos están comprometidos al mismo tiempo, el vínculo opera desde la inercia pura. No hay conversaciones que lleguen a su punto real, no hay un ritmo compartido, no hay nada que los dos estén construyendo juntos. Eso no genera una crisis inmediata, pero genera un desgaste acumulado que es difícil de nombrar porque no tiene una causa clara. La relación parece sostenerse, pero los dos saben, en algún nivel, que algo esencial falta.',
+          p3: 'Lo que está en juego es la viabilidad del vínculo a largo plazo. Si el patrón continúa, la inercia seguirá consumiendo lo que queda de conexión real hasta que la relación sea más una forma que un contenido. Si se trabaja, y si los dos quieren hacerlo, lo primero que se abre es la posibilidad de ver con claridad qué está pasando y decidir juntos qué quieren hacer con eso.',
+          pregunta: '¿Qué quieren hacer con esta relación, y están los dos dispuestos a hacer algo distinto?',
+        },
+      },
+      Hijo: {
+        'C1+C2': {
+          titulo: 'No se están hablando de verdad y no están encontrando su ritmo.',
+          p1: 'En este vínculo hay afecto, y probablemente historia compartida. Pero dos de sus nodos más importantes están bajo presión al mismo tiempo. La comunicación no está llegando a donde necesita llegar: hay cosas que no se dicen, temas que se evitan, una distancia que los dos administran sin resolverla. Y al mismo tiempo, el ritmo entre los dos está desajustado: uno toma decisiones sin contar con el otro, o cada uno sigue su propio paso sin que haya un compás compartido. Cuando estas dos cosas coinciden, la relación puede funcionar desde afuera pero los dos se sienten solos dentro de ella.',
+          p2: 'Con el tiempo, esa combinación genera un distanciamiento que se vuelve cada vez más difícil de revertir. Las cosas que no se dijeron en su momento se acumulan y crean capas de interpretaciones que ninguno ha podido verificar. El ritmo desajustado produce sensación de que el otro no está disponible, aunque físicamente esté cerca. Y a medida que eso ocurre, el umbral para intentar una conversación real sube, porque la distancia hace que cada intento parezca más arriesgado.',
+          p3: 'Lo que está en juego es la profundidad del vínculo que puede existir entre los dos. Si el patrón continúa, la relación puede mantenerse funcional pero seguirá siendo superficial, y los dos perderán la posibilidad de conocerse de verdad en esta etapa. Si se trabaja, lo que se abre es una comunicación más honesta y un ritmo que ambos sientan como propio, no impuesto.',
+          pregunta: '¿Hay algo que necesitan decirse y que llevan tiempo evitando?',
+        },
+        'C1+C3': {
+          titulo: 'Se coordinan, pero no hay conexión real ni algo que estén construyendo juntos.',
+          p1: 'Este vínculo tiene un funcionamiento práctico. Hay acuerdos, hay organización, las cosas cotidianas fluyen. Pero debajo de esa superficie hay dos ausencias que con el tiempo pesan. La comunicación no está llegando a un nivel de verdad: hay cosas que quedan sin decir, conversaciones que se mantienen en lo seguro. Y no hay un propósito o proyecto compartido que le dé al vínculo una dimensión más allá de lo funcional. La coordinación da una sensación de estabilidad, pero estabilidad sin conexión real y sin horizonte compartido termina sintiéndose vacía.',
+          p2: 'Con el tiempo, esa dinámica puede consolidarse como la norma del vínculo. Cada uno aprende a gestionar su relación con el otro desde lo práctico, sin esperar más. Lo que empieza como una forma de evitar conflictos termina siendo un límite que ninguno sabe cómo cruzar. Y la oportunidad de tener una relación más profunda se va haciendo más estrecha con cada año que pasa.',
+          p3: 'Lo que está en juego es si este vínculo va a quedarse en lo funcional o si puede convertirse en algo más significativo para los dos. Si el patrón continúa, la coordinación seguirá existiendo pero el vínculo emocional no crecerá. Si se trabaja, lo que se abre es la posibilidad de una conexión más auténtica y de construir algo juntos que a los dos les importe.',
+          pregunta: '¿Saben los dos qué quieren que sea este vínculo más allá de la rutina?',
+        },
+        'C2+C3': {
+          titulo: 'Se comunican, pero no encuentran su ritmo ni construyen algo juntos.',
+          p1: 'Hay algo valioso en este vínculo: la comunicación existe. Pueden hablarse, pueden decirse cosas reales. Pero esa capacidad de comunicarse no está siendo suficiente para generar sincronía ni propósito compartido. Cada uno sigue su propio ritmo y sus propios proyectos. Están en contacto, pero en paralelo. La conversación existe; lo que falta es que esa conversación mueva algo, que lleve a acuerdos, a iniciativas compartidas, a algo que los dos sientan como propio.',
+          p2: 'Con el tiempo, la distancia entre lo que se dice y lo que pasa puede generar frustración en los dos. Las palabras están, pero si no generan movimiento ni dirección, empiezan a perder su valor. Uno de los dos puede comenzar a sentir que hablar no sirve de mucho, y eso pone en riesgo lo que más tiene este vínculo.',
+          p3: 'Lo que está en juego es que la comunicación que hoy existe se convierta en el único activo de un vínculo que necesita más que eso para crecer. Si el patrón continúa, la relación puede quedar atrapada en conversaciones sin consecuencias. Si se trabaja, lo que se abre es usar esa capacidad de hablarse para construir algo concreto juntos y encontrar un ritmo que los dos sostengan.',
+          pregunta: '¿Las conversaciones que tienen están llevando a algo o se quedan en buenas intenciones?',
+        },
+        'C1+C2+C3': {
+          titulo: 'Los tres nodos están bajo presión.',
+          p1: 'Este vínculo existe, pero está operando casi desde la inercia. No hay comunicación que llegue a lo real, el ritmo no es compartido, y no hay algo que los dos estén construyendo juntos. Eso no significa que la relación esté rota o que el afecto no exista. Significa que está en piloto automático: sobrevive por el lazo que los une, por la historia, por el afecto de fondo. Reconocer eso no es un diagnóstico negativo. Es una pregunta: ¿qué quieren hacer con este vínculo?',
+          p2: 'Cuando los tres nodos están comprometidos, el desgaste es silencioso pero acumulativo. No hay un momento de crisis claro, pero tampoco hay momentos de verdadero encuentro. El vínculo se mantiene por la obligación del lazo o por la costumbre, no por lo que se está construyendo entre los dos. Con el tiempo, eso produce una distancia que es difícil de nombrar pero muy fácil de sentir.',
+          p3: 'Lo que está en juego es la calidad del vínculo que van a tener a largo plazo. Un lazo así puede durar décadas sin nunca profundizarse. Si el patrón continúa, los dos pueden llegar a una etapa en la que ya no sepan cómo conectar de verdad. Si se trabaja, lo que se abre es la posibilidad de redefinir qué quieren que sea este vínculo y empezar a construirlo desde ahí.',
+          pregunta: '¿Si pudieran cambiar una sola cosa de cómo se relacionan, cuál sería?',
+        },
+      },
+      Amigo: {
+        'C1+C2': {
+          titulo: 'Se coordinan, pero no se están viendo de verdad.',
+          p1: 'Esta amistad tiene historia y funciona en lo práctico: se organizan, se responden, se aparecen cuando toca. Pero hay dos ausencias que con el tiempo pesan. La comunicación no está llegando a un nivel real: hay cosas que no se dicen, temas que se evitan, una ligereza que protege pero también distancia. Y al mismo tiempo, el ritmo de la amistad lo impone uno de los dos, o ninguno, y eso genera una desincronía silenciosa. Una amistad puede sostenerse mucho tiempo desde la coordinación, pero si no hay comunicación real, tarde o temprano se siente vacía.',
+          p2: 'Con el tiempo, esa dinámica consolida un tipo de amistad que existe pero no profundiza. La coordinación mantiene la forma del vínculo, pero sin comunicación real, la conexión emocional se va erosionando. Cada uno aprende a no esperar más del otro, y eso se normaliza hasta el punto en que ya nadie intenta cruzar esa distancia. La amistad sigue existiendo, pero como un hábito, no como un encuentro real.',
+          p3: 'Lo que está en juego es si esta amistad va a seguir siendo una forma de verse o va a convertirse en algo que los dos necesiten. Si el patrón continúa, la distancia se solidificará y la posibilidad de una amistad más profunda se cerrará. Si se trabaja, lo que se abre es la oportunidad de pasar de la coordinación a la conexión real.',
+          pregunta: '¿Cuándo fue la última vez que tuvieron una conversación que los movió por dentro a los dos?',
+        },
+        'C1+C3': {
+          titulo: 'Se mueven bien juntos, pero no hay conexión ni construcción.',
+          p1: 'Esta amistad tiene un ritmo cómodo. No hay fricciones graves, las cosas fluyen. Pero debajo de esa comodidad hay dos ausencias: no se están viendo de verdad en la comunicación, y no hay algo que los dos estén construyendo juntos más allá de verse de vez en cuando. Eso puede pasar desapercibido durante años, porque la ausencia de conflicto se confunde con salud. Pero una amistad sin comunicación real y sin propósito compartido termina siendo más una costumbre que un vínculo.',
+          p2: 'Con el tiempo, esa comodidad sin profundidad puede convertirse en la definición de la amistad. Nadie la cuestiona porque no hay conflictos, pero tampoco nadie se siente verdaderamente conocido por el otro. La amistad existe en los calendarios, pero no en los momentos que importan. Y cuando llega un momento difícil o significativo, los dos pueden descubrir que no saben muy bien cómo estar el uno para el otro.',
+          p3: 'Lo que está en juego es la diferencia entre una amistad que dura y una amistad que importa. Si el patrón continúa, el vínculo seguirá siendo cómodo pero superficial, y ninguno de los dos crecerá dentro de él. Si se trabaja, lo que se abre es la posibilidad de una conexión más honesta y de construir algo juntos que le dé al vínculo una dimensión que hoy no tiene.',
+          pregunta: '¿Esta amistad les está pidiendo algo a los dos, o simplemente existe?',
+        },
+        'C2+C3': {
+          titulo: 'Se comunican, pero no se sincronizan ni construyen.',
+          p1: 'Hay algo valioso en esta amistad: pueden hablarse, pueden decirse cosas reales. Pero esa capacidad de comunicarse no está generando movimiento ni dirección. Cada uno sigue su propio ritmo y sus propios proyectos. Se hablan, pero en paralelo. Lo que falta es que esa conversación mueva algo, que lleve a algún acuerdo, a alguna iniciativa compartida, a algo que los dos sientan como propio.',
+          p2: 'Con el tiempo, la brecha entre lo que se habla y lo que se hace puede generar una sensación silenciosa de frustración. Uno de los dos puede empezar a sentir que la amistad es asimétrica: que pone más de lo que recibe, o que las conversaciones no llevan a nada concreto. Y eso, si no se nombra, termina reduciendo la frecuencia y la profundidad de los encuentros.',
+          p3: 'Lo que está en juego es que la comunicación que hoy sostiene esta amistad empiece a desgastarse por falta de movimiento. Si el patrón continúa, la amistad puede ir perdiendo energía hasta quedar reducida a contactos ocasionales. Si se trabaja, lo que se abre es convertir esa capacidad de hablarse en algo que genere iniciativas compartidas y le dé al vínculo una dirección.',
+          pregunta: '¿Hay algo que esta amistad podría hacer juntos y que nunca ha pasado porque nadie lo ha propuesto?',
+        },
+        'C1+C2+C3': {
+          titulo: 'Los tres nodos están bajo presión.',
+          p1: 'Esta amistad existe, pero está en piloto automático. No se están viendo de verdad, el ritmo no es compartido, y no hay algo que los dos estén construyendo juntos. Eso no significa que la amistad esté rota. Significa que sobrevive por la historia común, por la costumbre de estar, por el afecto de fondo. Reconocer eso no es un diagnóstico negativo. Es una pregunta: ¿qué quieren hacer con esta amistad?',
+          p2: 'Cuando los tres nodos están bajo presión, la amistad opera desde la costumbre. No hay conversaciones que lleguen a lo real, no hay un ritmo que los dos sostengan, y no hay algo que estén construyendo juntos. El vínculo existe porque tiene historia, pero no porque tenga energía propia en el presente. Con el tiempo, eso lo vuelve más frágil de lo que parece: cualquier cambio de rutina o de etapa vital puede dejarlo sin sustento.',
+          p3: 'Lo que está en juego es si esta amistad tiene lo que necesita para sobrevivir a los cambios que inevitablemente vienen. Si el patrón continúa, el vínculo puede disolverse sin que haya habido un conflicto real, simplemente por falta de conexión activa. Si se trabaja, lo que se abre es la posibilidad de decidir, con intención, qué quieren que sea esta amistad.',
+          pregunta: '¿Si pudieran rediseñar esta amistad desde cero, qué cambiarían primero?',
+        },
+      },
+      Colega: {
+        'C1+C2': {
+          titulo: 'Trabajan juntos, pero no se están comunicando ni sincronizando.',
+          p1: 'Esta relación profesional tiene presencia, pero dos nodos importantes están bajo presión simultánea. La comunicación no está llegando donde necesita llegar: hay cosas que no se dicen, malentendidos que se acumulan, una distancia profesional que se administra pero no se resuelve. Y al mismo tiempo, los ritmos no están alineados: cada uno avanza por su lado, sin una cadencia compartida. Eso puede generar roce silencioso, trabajo duplicado o decisiones que se toman sin la información del otro.',
+          p2: 'Con el tiempo, esa combinación genera un ambiente de trabajo donde los malentendidos se acumulan sin resolverse y los desajustes de ritmo producen fricciones que nadie nombra pero todos sienten. El trabajo se hace, pero con más esfuerzo del necesario. Y la relación profesional se mantiene en un estado de tensión silenciosa que consume energía y limita lo que los dos podrían lograr si estuvieran alineados.',
+          p3: 'Lo que está en juego es la calidad del trabajo que pueden producir juntos y la sostenibilidad de la relación profesional a largo plazo. Si el patrón continúa, los roces se irán acumulando hasta afectar los resultados y el clima entre los dos. Si se trabaja, lo que se abre es una colaboración más eficiente y una relación profesional que genere resultados que ninguno lograría por separado.',
+          pregunta: '¿Hay un malentendido o una conversación pendiente que los dos saben que necesitan tener?',
+        },
+        'C1+C3': {
+          titulo: 'Se sincronizan bien, pero no hay comunicación real ni proyecto compartido.',
+          p1: 'Esta relación profesional funciona en términos de ritmo: hay cierta coordinación, las cosas se hacen. Pero hay dos ausencias que a la larga limitan el vínculo. La comunicación no está llegando a un nivel de claridad real, y no hay algo que los dos sientan como un proyecto propio más allá de cumplir con lo que toca. Sin eso, la relación laboral puede volverse eficiente pero fría, y difícilmente genera los resultados que solo emergen cuando dos personas se sienten realmente parte de algo juntos.',
+          p2: 'Con el tiempo, esa relación puede volverse funcionalmente eficiente pero emocionalmente árida. Cada uno cumple con lo suyo, pero no hay motivación compartida que eleve el nivel del trabajo más allá de lo suficiente. Y cuando surge una oportunidad de colaboración más ambiciosa, los dos pueden descubrir que no tienen la base para sostenerla: ni la comunicación clara ni el propósito compartido que se necesitan.',
+          p3: 'Lo que está en juego es si esta relación profesional va a quedarse en la zona de lo suficiente o puede convertirse en una colaboración genuinamente productiva. Si el patrón continúa, el vínculo seguirá siendo funcional pero nunca generará los resultados que solo emergen cuando dos personas trabajan de verdad hacia algo que importa. Si se trabaja, lo que se abre es la posibilidad de construir una relación profesional que los dos valoren.',
+          pregunta: '¿Hay algo en lo que podrían trabajar juntos que los dos encontrarían significativo?',
+        },
+        'C2+C3': {
+          titulo: 'Se comunican, pero no se sincronizan ni construyen algo juntos.',
+          p1: 'Hay algo positivo en esta relación: la comunicación existe. Pueden decirse cosas, hay apertura. Pero esa capacidad de comunicarse no está generando coordinación ni propósito compartido. Cada uno avanza por su propio ritmo y hacia sus propios objetivos. Se hablan, pero trabajan en paralelo. Lo que falta es que esa comunicación mueva algo concreto: un acuerdo, una iniciativa, una dirección que los dos sientan como compartida.',
+          p2: 'Con el tiempo, esa brecha entre la conversación y la acción puede generar desconfianza. Si las palabras no mueven nada, los dos empiezan a dudar de la solidez del vínculo profesional. Uno puede sentir que el otro no cumple lo que acuerda; el otro puede sentir que sus esfuerzos no son reconocidos. Y esa fricción, si no se aborda, afecta no solo la relación sino la calidad del trabajo.',
+          p3: 'Lo que está en juego es la eficacia real de esta colaboración y la confianza que la sostiene. Si el patrón continúa, la comunicación puede dejar de ser un activo y convertirse en una fuente de frustración. Si se trabaja, lo que se abre es transformar esa capacidad de hablarse en acuerdos concretos, responsabilidades claras y un propósito compartido que los dos sostengan.',
+          pregunta: '¿La comunicación que tienen está llevando a decisiones concretas, o se queda en buenas intenciones?',
+        },
+        'C1+C2+C3': {
+          titulo: 'Los tres nodos están bajo presión.',
+          p1: 'Esta relación profesional está sostenida por la estructura externa, no por el vínculo en sí. La comunicación no está llegando donde necesita llegar, los ritmos no están alineados, y no hay un propósito compartido que les dé energía más allá de cumplir. Eso no significa que sea irrecuperable. Significa que está operando desde el mínimo. Reconocerlo es el primer paso para decidir si quieren y pueden construir algo distinto.',
+          p2: 'Cuando los tres nodos están comprometidos en una relación profesional, el desgaste es mayor de lo que parece. No hay claridad en la comunicación, los ritmos no están alineados, y no hay un propósito compartido que le dé sentido al esfuerzo. Eso produce trabajo duplicado, decisiones mal informadas y una sensación de que trabajar juntos cuesta más de lo que rinde. Con el tiempo, eso se vuelve insostenible.',
+          p3: 'Lo que está en juego es si esta colaboración tiene futuro. Si el patrón continúa, la relación profesional puede deteriorarse hasta afectar los resultados de ambos, o hasta que uno de los dos decida que no vale la pena seguir. Si se trabaja, y si los dos quieren hacerlo, lo primero que se abre es la posibilidad de tener una conversación honesta sobre qué está fallando y qué necesitarían para trabajar bien juntos.',
+          pregunta: '¿Si pudieran cambiar una sola cosa de cómo trabajan juntos, cuál sería?',
+        },
+      },
+    };
+
+    const SINGLE_TEXTS = {
+      C1: {
+        titulo: 'La comunicación necesita llegar más lejos.',
+        p1: 'Las otras dos dimensiones de este vínculo están activas: hay movimiento compartido y hay algo que los dos construyen juntos. Pero la comunicación no está llegando donde necesita llegar. Hay cosas que no se dicen, conversaciones que se quedan en la superficie, una distancia que se administra pero no se resuelve.',
+        p2: 'Sin comunicación real, el movimiento y la colaboración que tiene este vínculo terminan operando sin el sustento emocional que los sostiene. Con el tiempo, los dos pueden ir sintiéndose cada vez más solos dentro de una relación que por fuera parece funcionar bien.',
+        p3: 'Lo que está en juego es si lo que hoy se construye juntos va a poder sostenerse sin una base de comunicación honesta. Si se trabaja este nodo, lo que se abre es que todo lo demás que ya funciona tenga raíces más profundas.',
+        pregunta: '¿Hay algo que llevan tiempo sin poder decirse de verdad?',
+      },
+      C2: {
+        titulo: 'El ritmo compartido necesita ajustarse.',
+        p1: 'Hay comunicación y hay propósito en este vínculo. Pero el ritmo no está sincronizado: uno avanza mientras el otro espera, o cada uno resuelve su parte sin que haya una cadencia que los dos sientan como propia.',
+        p2: 'Con el tiempo, el desajuste de ritmo genera sensación de que el otro no está disponible, aunque esté presente. La comunicación existe y el propósito también, pero si el ritmo no se comparte, los dos terminan moviéndose en paralelo aunque crean que van juntos.',
+        p3: 'Lo que está en juego es que la comunicación y el propósito que ya existen no encuentren la sincronía que necesitan para ser efectivos. Si se trabaja este nodo, lo que se abre es que todo lo que ya hay en el vínculo empiece a fluir con una cadencia compartida.',
+        pregunta: '¿Hay decisiones o movimientos importantes que uno de los dos está tomando sin contar con el otro?',
+      },
+      C3: {
+        titulo: 'Falta algo que los dos estén construyendo juntos.',
+        p1: 'La comunicación funciona y el ritmo está alineado. Pero no hay un propósito compartido que le dé al vínculo una dirección más allá de lo cotidiano. Se hablan, se mueven juntos, pero no hay algo que los dos estén construyendo que los una más allá de la rutina.',
+        p2: 'Con el tiempo, la ausencia de propósito compartido hace que el vínculo se sienta cada vez más como una forma de convivencia organizada. Puede que todo funcione, pero sin una dirección que los dos sientan como propia, la energía del vínculo empieza a bajar.',
+        p3: 'Lo que está en juego es la profundidad y la vitalidad del vínculo a largo plazo. Si se trabaja este nodo, lo que se abre es la posibilidad de encontrar algo que los dos quieran construir juntos y que le dé sentido a todo lo que ya hacen bien.',
+        pregunta: '¿Hacia dónde va este vínculo, más allá de seguir existiendo?',
+      },
+      equilibrado: {
+        titulo: 'Este vínculo tiene los tres nodos activos.',
+        p1: 'La comunicación llega donde necesita llegar, el ritmo es compartido y hay algo que los dos están construyendo juntos. Eso no es común, y vale la pena reconocerlo. Un vínculo con los tres nodos activos tiene la base para crecer, para atravesar momentos difíciles y para ser significativo para los dos.',
+        p2: 'Mantener los tres nodos activos requiere atención continua. Los vínculos sanos no se mantienen solos: necesitan que los dos sigan eligiéndose, que las conversaciones difíciles no se eviten y que el propósito compartido se actualice cuando la vida cambia.',
+        p3: 'Lo que está en juego es sostener lo que ya funciona y profundizarlo. Un vínculo con esta base puede convertirse en uno de los más significativos de una vida, si los dos siguen poniéndole intención.',
+        pregunta: '¿Qué es lo más valioso de este vínculo y cómo lo están cuidando?',
+      },
+    };
+
+    function getComboKey(scores) {
+      const weak = ['C1','C2','C3'].filter(c => scores[c] <= 10);
+      if (weak.length === 0) return 'equilibrado';
+      return weak.join('+');
+    }
+
+    function getComboText(vinculo, key) {
+      if (key === 'equilibrado' || !COMBO_TEXTS[vinculo] || !COMBO_TEXTS[vinculo][key]) {
+        const node = key === 'equilibrado' ? 'equilibrado' : key;
+        return SINGLE_TEXTS[node] || SINGLE_TEXTS['equilibrado'];
+      }
+      return COMBO_TEXTS[vinculo][key];
+    }
+
+    const NODE_LABELS = { C1: 'Comunicación', C2: 'Coordinación', C3: 'Colaboración' };
+
+    function App() {
+      const [screen, setScreen] = useState('intro');
+      const [vinculo, setVinculo] = useState(null);
+      const [current, setCurrent] = useState(0);
+      const [answers, setAnswers] = useState({});
+      const [selected, setSelected] = useState(null);
+      const lockRef = useRef(false);
+
+      const questions = vinculo ? QUESTIONS[vinculo] : [];
+      const total = questions.length;
+      const progress = total > 0 ? Math.round((current / total) * 100) : 0;
+
+      const computeScores = useCallback(() => {
+        const scores = { C1: 0, C2: 0, C3: 0 };
+        questions.forEach((q, i) => {
+          scores[q.c] = (scores[q.c] || 0) + (answers[i] || 0);
+        });
+        return scores;
+      }, [questions, answers]);
+
+      const handleAnswer = useCallback((val) => {
+        if (lockRef.current) return;
+        lockRef.current = true;
+        setSelected(val);
+        setTimeout(() => {
+          setAnswers(prev => ({ ...prev, [current]: val }));
+          setSelected(null);
+          if (current + 1 >= total) {
+            setScreen('results');
+          } else {
+            setCurrent(c => c + 1);
+          }
+          lockRef.current = false;
+        }, 280);
+      }, [current, total]);
+
+      const handlePrev = useCallback(() => {
+        if (current === 0) return;
+        setCurrent(c => c - 1);
+        setSelected(null);
+      }, [current]);
+
+      const restart = () => {
+        setScreen('intro');
+        setVinculo(null);
+        setCurrent(0);
+        setAnswers({});
+        setSelected(null);
+        lockRef.current = false;
+      };
+
+      const selectVinculo = (v) => {
+        setVinculo(v);
+        setCurrent(0);
+        setAnswers({});
+        setSelected(null);
+        setScreen('quiz');
+      };
+
+      const scores = screen === 'results' ? computeScores() : {};
+      const comboKey = screen === 'results' ? getComboKey(scores) : '';
+      const comboText = screen === 'results' ? getComboText(vinculo, comboKey) : {};
+      const radarData = [
+        { node: 'Comunicación', value: scores.C1 || 0, full: 16 },
+        { node: 'Coordinación', value: scores.C2 || 0, full: 16 },
+        { node: 'Colaboración', value: scores.C3 || 0, full: 16 },
+      ];
+
+      if (screen === 'intro') return (
+        <div style={{minHeight:'100dvh',background:'#0f0f0f',color:'#f0ece4',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column',boxSizing:'border-box'}}>
+          <div style={{position:'relative',width:'100%',height:'50vh',minHeight:260,maxHeight:420,flexShrink:0,overflow:'hidden'}}>
+            <img
+              src="https://raw.githubusercontent.com/piscomorado/elpatronoculto-assets/main/Portada.png"
+              alt="Portada El Patrón Oculto"
+              style={{width:'100%',height:'100%',objectFit:'cover',objectPosition:'center 15%',display:'block'}}
+            />
+            <div style={{position:'absolute',bottom:0,left:0,width:'100%',height:'70%',background:'linear-gradient(to bottom, transparent 0%, #0f0f0f 100%)',pointerEvents:'none'}}></div>
+            <div style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',background:'rgba(15,15,15,0.25)',pointerEvents:'none'}}></div>
+          </div>
+          <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',padding:'8px 20px 40px',boxSizing:'border-box'}}>
+            <div style={{maxWidth:480,width:'100%',textAlign:'center'}}>
+              <h1 style={{fontSize:'clamp(24px,6vw,36px)',fontWeight:700,lineHeight:1.2,marginBottom:16,letterSpacing:'-0.02em',marginTop:0}}>¿Cuál es el estado<br/>de tu vínculo?</h1>
+              <p style={{fontSize:15,lineHeight:1.7,color:'#b5afa8',marginBottom:12}}>Las 3C son los tres nodos que todo vínculo necesita para sostenerse y crecer:</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:28,textAlign:'left'}}>
+                {[
+                  ['C1','Comunicación','¿Te ven o solo te escuchan?'],
+                  ['C2','Coordinación','¿Se mueven juntos o en paralelo?'],
+                  ['C3','Colaboración','¿Construyen algo juntos o solo coexisten?'],
+                ].map(([code,name,desc]) => (
+                  <div key={code} style={{display:'flex',alignItems:'flex-start',gap:14,background:'#1a1a1a',borderRadius:6,padding:'12px 16px'}}>
+                    <span style={{fontSize:11,fontWeight:700,color:'#c9a96e',letterSpacing:'0.08em',minWidth:22,paddingTop:2}}>{code}</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#f0ece4',marginBottom:2}}>{name}</div>
+                      <div style={{fontSize:12,color:'#8a7f74'}}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p style={{fontSize:14,color:'#8a7f74',marginBottom:32,lineHeight:1.6}}>Esta herramienta evalúa el estado actual de un vínculo específico en tu vida. No mide tus arquetipos; mide lo que está pasando hoy entre tú y esa persona.</p>
+              <button onClick={() => setScreen('select')} style={{background:'#c9a96e',color:'#0f0f0f',border:'none',borderRadius:4,padding:'14px 36px',fontSize:15,fontWeight:700,cursor:'pointer',letterSpacing:'0.02em',width:'100%',maxWidth:320}}>
+                Comenzar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+
+      if (screen === 'select') return (
+        <div style={{minHeight:'100dvh',background:'#0f0f0f',color:'#f0ece4',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 20px',boxSizing:'border-box'}}>
+          <div style={{maxWidth:480,width:'100%'}}>
+            <p style={{fontSize:11,letterSpacing:'0.14em',textTransform:'uppercase',color:'#8a7f74',marginBottom:12,textAlign:'center'}}>Paso 1 de 2</p>
+            <h2 style={{fontSize:'clamp(20px,5vw,28px)',fontWeight:700,textAlign:'center',marginBottom:8,letterSpacing:'-0.02em'}}>¿Qué vínculo quieres evaluar?</h2>
+            <p style={{fontSize:13,color:'#8a7f74',textAlign:'center',marginBottom:32}}>Piensa en una persona específica.</p>
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              {VINCULOS.map(v => (
+                <button key={v.id} onClick={() => selectVinculo(v.id)}
+                  style={{background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:6,padding:'18px 20px',cursor:'pointer',display:'flex',alignItems:'center',gap:16,color:'#f0ece4',transition:'border-color 0.2s',textAlign:'left'}}
+                  onMouseEnter={e => e.currentTarget.style.borderColor='#c9a96e'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor='#2a2a2a'}>
+                  <span style={{width:22,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{v.icon}</span>
+                  <span style={{fontSize:15,fontWeight:600}}>{v.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      if (screen === 'quiz') {
+        const q = questions[current];
+        const nodeLabel = NODE_LABELS[q.c];
+        return (
+          <div style={{minHeight:'100dvh',background:'#0f0f0f',color:'#f0ece4',fontFamily:'Inter,sans-serif',display:'flex',flexDirection:'column',padding:'env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)',boxSizing:'border-box'}}>
+            <div style={{height:3,background:'#1f1f1f',flexShrink:0}}>
+              <div style={{height:'100%',width:`${progress}%`,background:'#c9a96e',transition:'width 0.3s ease'}}></div>
+            </div>
+            <div style={{padding:'20px 20px 0',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+              <span style={{fontSize:11,color:'#8a7f74',letterSpacing:'0.1em',textTransform:'uppercase'}}>{nodeLabel}</span>
+              <span style={{fontSize:11,color:'#8a7f74'}}>{current + 1} / {total}</span>
+            </div>
+            <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',padding:'24px 20px',maxWidth:520,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+              <h2 style={{fontSize:'clamp(17px,4.5vw,22px)',fontWeight:600,lineHeight:1.45,marginBottom:36,textAlign:'center'}}>{q.text}</h2>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {OPTIONS.map(opt => {
+                  const isSelected = selected === opt.value;
+                  const wasAnswered = answers[current] === opt.value;
+                  const active = isSelected || wasAnswered;
+                  return (
+                    <button key={opt.value} onClick={() => handleAnswer(opt.value)}
+                      style={{
+                        background: active ? '#c9a96e' : '#1a1a1a',
+                        color: active ? '#0f0f0f' : '#f0ece4',
+                        border: `1px solid ${active ? '#c9a96e' : '#2a2a2a'}`,
+                        borderRadius: 4,
+                        padding: '14px 20px',
+                        fontSize: 14,
+                        fontWeight: active ? 700 : 400,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                        outline: 'none',
+                      }}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {current > 0 && (
+                <button onClick={handlePrev} style={{marginTop:24,background:'transparent',border:'none',color:'#8a7f74',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6,padding:0,alignSelf:'center'}}>
+                  ← Anterior
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (screen === 'results') {
+        return (
+          <div style={{minHeight:'100dvh',background:'#0f0f0f',color:'#f0ece4',fontFamily:'Inter,sans-serif',padding:'env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)',boxSizing:'border-box'}}>
+            <div style={{maxWidth:560,margin:'0 auto',padding:'32px 20px 48px',boxSizing:'border-box'}}>
+              <p style={{fontSize:11,letterSpacing:'0.14em',textTransform:'uppercase',color:'#c9a96e',marginBottom:8,textAlign:'center'}}>Pulso del vínculo — 3C</p>
+              <h2 style={{fontSize:'clamp(22px,5vw,30px)',fontWeight:700,marginBottom:4,letterSpacing:'-0.02em',textAlign:'center'}}>
+                {VINCULOS.find(v => v.id === vinculo)?.label}
+              </h2>
+              <p style={{fontSize:13,color:'#8a7f74',marginBottom:32,textAlign:'center'}}>Resultado de tu evaluación</p>
+              <div style={{background:'#141414',borderRadius:6,padding:'24px 16px',marginBottom:24}}>
+                <ResponsiveContainer width="100%" height={220}>
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke="#2a2a2a" />
+                    <PolarAngleAxis dataKey="node" tick={{fill:'#8a7f74',fontSize:11}} />
+                    <Radar name="Vínculo" dataKey="value" stroke="#c9a96e" fill="#c9a96e" fillOpacity={0.18} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:28}}>
+                {['C1','C2','C3'].map(c => {
+                  const isWeak = scores[c] <= 10;
+                  return (
+                    <div key={c} style={{background:'#141414',borderRadius:6,padding:'14px 10px',textAlign:'center',border:`1px solid ${isWeak ? '#8b4a2a' : '#2a2a2a'}`}}>
+                      <div style={{fontSize:10,letterSpacing:'0.1em',color: isWeak ? '#e07a4a' : '#c9a96e',textTransform:'uppercase',marginBottom:4}}>{c}</div>
+                      <div style={{fontSize:20,fontWeight:700,color:'#f0ece4'}}>{scores[c]}</div>
+                      <div style={{fontSize:10,color:'#8a7f74',marginTop:2}}>{NODE_LABELS[c]}</div>
+                      <div style={{fontSize:10,color: isWeak ? '#e07a4a' : '#6aab7a',marginTop:4,fontWeight:600}}>{isWeak ? 'Nodo débil' : 'Nodo activo'}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginBottom:28}}>
+                <p style={{fontSize:12,color:'#c9a96e',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:12}}>Diagnóstico del vínculo</p>
+                <p style={{fontSize:15,fontStyle:'italic',color:'#c9a96e',marginBottom:20,fontWeight:600,lineHeight:1.4}}>"{comboText.titulo}"</p>
+                <p style={{fontSize:14,lineHeight:1.75,color:'#d5cfc8',marginBottom:20}}>{comboText.p1}</p>
+                <div style={{borderLeft:'2px solid #2a2a2a',paddingLeft:16,marginBottom:20}}>
+                  <p style={{fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'#8a7f74',marginBottom:8}}>Si no se interviene</p>
+                  <p style={{fontSize:14,lineHeight:1.75,color:'#b5afa8'}}>{comboText.p2}</p>
+                </div>
+                <div style={{borderLeft:'2px solid #c9a96e',paddingLeft:16,marginBottom:24}}>
+                  <p style={{fontSize:11,letterSpacing:'0.1em',textTransform:'uppercase',color:'#c9a96e',marginBottom:8}}>Lo que está en juego</p>
+                  <p style={{fontSize:14,lineHeight:1.75,color:'#d5cfc8'}}>{comboText.p3}</p>
+                </div>
+                <div style={{background:'#141414',borderRadius:6,padding:'18px 20px',border:'1px solid #2a2a2a'}}>
+                  <p style={{fontSize:13,fontStyle:'italic',color:'#e8e2da',lineHeight:1.65,margin:0}}>{comboText.pregunta}</p>
+                </div>
+              </div>
+              <div style={{background:'#1a1209',borderRadius:6,padding:'20px',border:'1px solid #3a2e1a',marginBottom:24,textAlign:'center'}}>
+                <p style={{fontSize:12,color:'#c9a96e',letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>¿Quieres entender el origen de estos patrones?</p>
+                <p style={{fontSize:13,color:'#8a7f74',marginBottom:16,lineHeight:1.6}}>El Patrón Oculto explica por qué repetimos estos vínculos y cómo cambiarlos.</p>
+                <a href="https://elpatronoculto.com" target="_blank" rel="noopener noreferrer"
+                  className="cta-pulse"
+                  style={{display:'inline-block',background:'#c9a96e',color:'#0f0f0f',padding:'12px 28px',borderRadius:4,fontSize:14,fontWeight:700,textDecoration:'none',letterSpacing:'0.02em'}}>
+                  Conocer el libro
+                </a>
+              </div>
+              <button onClick={restart} style={{width:'100%',background:'transparent',border:'1px solid #2a2a2a',borderRadius:4,padding:'12px',color:'#8a7f74',fontSize:13,cursor:'pointer'}}>
+                Evaluar otro vínculo
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
